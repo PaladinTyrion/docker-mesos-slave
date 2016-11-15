@@ -1,18 +1,28 @@
-### Based on https://github.com/apache/spark/blob/master/docker/spark-mesos/Dockerfile
-FROM mesosphere/mesos-slave:1.1.0-rc3 
+FROM centos:7
+MAINTAINER Peter Ericson <pdericson@gmail.com>
 
-# Install Oracle JDK instead of OpenJDK
-RUN apt-get remove -y --auto-remove openjdk* && \
-    apt-get update && \
-    apt-get install -y software-properties-common && \
-    add-apt-repository -y ppa:webupd8team/java && \
-    apt-get update && \
-    echo debconf shared/accepted-oracle-license-v1-1 select true | sudo debconf-set-selections && \
-    echo debconf shared/accepted-oracle-license-v1-1 seen true | sudo debconf-set-selections && \
-    sudo apt-get install -y oracle-java8-installer oracle-java8-set-default && \
-    rm -r /var/cache/oracle-jdk* && \
-    apt-get clean && apt-get autoremove -y
+# https://github.com/Yelp/dumb-init
+RUN curl -fLsS -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.0.2/dumb-init_1.0.2_amd64 && chmod +x /usr/local/bin/dumb-init
 
-# Update the base ubuntu image with dependencies needed for Spark
-RUN apt-get install -y python libnss3 curl && \
-    apt-get autoremove -y
+RUN rpm -i http://repos.mesosphere.io/el/7/noarch/RPMS/mesosphere-el-repo-7-1.noarch.rpm && \
+yum -y install mesos-0.24.1
+
+RUN rpm -i http://download.oracle.com/otn-pub/java/jdk/8u111-b14/jdk-8u111-linux-x64.rpm && \ 
+yum -y install jdk-8u111-linux-x64.rpm
+
+# http://docs.docker.com/installation/centos/
+RUN curl -fLsS https://get.docker.com/ | sh
+
+CMD ["/usr/sbin/mesos-slave"]
+
+ENV MESOS_WORK_DIR /tmp/mesos
+ENV MESOS_CONTAINERIZERS docker,mesos
+
+# https://mesosphere.github.io/marathon/docs/native-docker.html
+ENV MESOS_EXECUTOR_REGISTRATION_TIMEOUT 5mins
+
+VOLUME /tmp/mesos
+
+COPY entrypoint.sh /
+
+ENTRYPOINT ["/usr/local/bin/dumb-init", "/entrypoint.sh"]
